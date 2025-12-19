@@ -1,0 +1,1 @@
+# Cutting_Stock_Problem_Application_Maestranza_Arizmendi_Ltda.v2
