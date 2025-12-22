@@ -581,5 +581,5 @@ if calcular:
                 st.markdown(f"""<div style="width:{ancho_total_visual}%; height:60px; border:1px solid #444; border-radius:4px; display:flex; overflow:hidden; margin-bottom:25px; background-color:#fafafa;">{divs_cortes}{div_remanente}</div>""", unsafe_allow_html=True)
                 
                 idx_patron += 1
-    else:
-        st.info("Ingresa las piezas a la izquierda y presiona Calcular.")
+        else:
+            st.info("Ingresa las piezas a la izquierda y presiona Calcular.")
