@@ -6,7 +6,7 @@ from streamlit_pdf_viewer import pdf_viewer
 import pytz
 
 # -----------------------------------------------------------------------------
-# CONFIGURACIÓN INICIAL (DEBE IR SIEMPRE AL PRINCIPIO)
+# CONFIGURACIÓN INICIAL
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="Optimizador Arizmendi", 
@@ -30,11 +30,8 @@ def check_password():
     if st.session_state.get("password_correct", False):
         return True
 
-    # Interfaz de Login
     st.title("🔒 Acceso Restringido")
     st.markdown("### Maestranza Arizmendi Ltda.")
-    st.markdown("Por favor, ingrese la contraseña para acceder al sistema.")
-    
     st.text_input(
         "Contraseña:", 
         type="password", 
@@ -43,15 +40,15 @@ def check_password():
     )
     
     if "password_correct" in st.session_state:
-        st.error("🚫 Contraseña incorrecta. Intente nuevamente.")
+        st.error("🚫 Contraseña incorrecta.")
 
     return False
 
 if not check_password():
-    st.stop() # Si no hay contraseña, se detiene aquí y no carga el resto.
+    st.stop()
 
 # =============================================================================
-# A PARTIR DE AQUÍ CARGA EL PROGRAMA (SOLO USUARIOS AUTORIZADOS)
+# A PARTIR DE AQUÍ CARGA EL PROGRAMA
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -83,6 +80,7 @@ class OptimizadorCortes:
 
     def resolver(self):
         piezas_ordenadas = sorted(self.requerimientos, key=lambda x: x['largo'], reverse=True)
+        # Copiamos el stock disponible para empezar a llenarlo
         barras_resultado = [b.copy() for b in self.stock_disponible] 
 
         for pieza in piezas_ordenadas:
@@ -183,11 +181,11 @@ def crear_pdf_cortes(patrones, nombre_estructura, largo_stock, kerf, metricas):
     pdf.cell(0, 6, nombre_estructura, 0, 1)
     
     pdf.set_font("Arial", 'B', 10)
-    pdf.cell(35, 6, "Longitud comercial:", 0)
+    pdf.cell(35, 6, "Longitud base:", 0)
     pdf.set_font("Arial", '', 10)
     pdf.cell(40, 6, f"{int(largo_stock)} mm", 0)
     pdf.set_font("Arial", 'B', 10)
-    pdf.cell(35, 6, "Espesor sierra:", 0)
+    pdf.cell(35, 6, "Espesor de la sierra:", 0)
     pdf.set_font("Arial", '', 10)
     pdf.cell(0, 6, f"{int(kerf)} mm", 0, 1)
     pdf.ln(5)
@@ -331,7 +329,9 @@ def crear_pdf_cortes(patrones, nombre_estructura, largo_stock, kerf, metricas):
     pdf.set_x(x_centrado)
     pdf.cell(ancho_col1, 7, "Etiqueta", 1, 0, 'C', True)
     pdf.cell(ancho_col2, 7, "Largo (mm)", 1, 0, 'C', True)
-    pdf.cell(ancho_col3, 7, "Cantidad Total", 1, 1, 'C', True)
+    
+    # CAMBIO: Cantidad Total -> Cantidad total
+    pdf.cell(ancho_col3, 7, "Cantidad total", 1, 1, 'C', True)
     
     pdf.set_font("Arial", '', 9)
     piezas_ordenadas = sorted(resumen_piezas.items(), key=lambda x: x[0][0])
@@ -347,6 +347,7 @@ def crear_pdf_cortes(patrones, nombre_estructura, largo_stock, kerf, metricas):
 # -----------------------------------------------------------------------------
 # 3. INTERFAZ GRÁFICA
 # -----------------------------------------------------------------------------
+
 st.markdown("""
 <style>
     .bloque-corte { transition: transform 0.2s; cursor: default; }
@@ -359,7 +360,10 @@ st.title("🏭 Optimizador de Cortes - Maestranza Arizmendi Ltda.")
 
 with st.sidebar:
     st.header("1. Configuración")
-    nombre_estructura = st.text_input("Nombre Proyecto", value="Galpón Principal")
+    
+    # CAMBIO: Valor por defecto actualizado
+    nombre_estructura = st.text_input("Nombre Proyecto", value="Estructura X")
+    
     largo_stock = st.number_input("Largo Comercial (mm)", value=6000, step=100)
     kerf = st.number_input("Espesor Sierra (mm)", value=3.0, step=0.5)
     
@@ -368,9 +372,10 @@ with st.sidebar:
     st.markdown("### 📦 Bodega / Sobrantes")
     st.info("Ingresa aquí los retazos que quieras reutilizar.")
     
+    # CAMBIO: DataFrame vacío inicial
     if "df_stock" not in st.session_state:
         st.session_state.df_stock = pd.DataFrame(
-            [{"Cantidad": 0, "Largo": 2500, "Ref": "Retazo"}],
+            columns=["Cantidad", "Largo", "Ref"]
         )
 
     edited_stock = st.data_editor(
@@ -387,10 +392,11 @@ with st.sidebar:
     )
 
 st.subheader("2. Listado de Piezas a Cortar")
+
+# CAMBIO: DataFrame vacío inicial
 if "df_piezas" not in st.session_state:
     st.session_state.df_piezas = pd.DataFrame(
-        [{"Cantidad": 1, "Largo": 4190, "Etiqueta": "C7"},
-            {"Cantidad": 6, "Largo": 265, "Etiqueta": "SP1"}],
+        columns=["Cantidad", "Largo", "Etiqueta"]
     )
 
 edited_df = st.data_editor(
@@ -418,7 +424,7 @@ if calcular:
         for _, row in edited_stock.iterrows():
             try:
                 if row['Cantidad'] > 0 and row['Largo'] > 0:
-                    ref = str(row['Ref']) if row['Ref'] else "Retazo"
+                    ref = str(row['Ref']) if pd.notna(row['Ref']) and str(row['Ref']).strip() != "" else "Retazo"
                     opt.agregar_stock(row['Cantidad'], row['Largo'], ref)
             except: pass
             
@@ -426,7 +432,8 @@ if calcular:
         for _, row in edited_df.iterrows():
             try:
                 if row['Cantidad'] > 0 and row['Largo'] > 0:
-                    ok, msg = opt.agregar_requerimiento(row['Cantidad'], row['Largo'], str(row['Etiqueta']))
+                    lbl = str(row['Etiqueta']) if pd.notna(row['Etiqueta']) else ""
+                    ok, msg = opt.agregar_requerimiento(row['Cantidad'], row['Largo'], lbl)
                     if not ok: 
                         st.error(msg)
                         error = True
