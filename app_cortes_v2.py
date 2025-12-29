@@ -227,7 +227,7 @@ def crear_pdf_cortes(patrones, nombre_estructura, largo_stock, kerf, metricas):
         pdf.cell(25, 5, f"{metricas['peso_total_kg']:.1f} kg", 0, 0)
         
         pdf.set_font("Arial", '', 8)
-        pdf.cell(30, 5, f"(Util: {metricas['peso_util_kg']:.1f} kg | Pérdida: {metricas['peso_perdida_kg']:.1f} kg)", 0, 0)
+        pdf.cell(30, 5, f"(Útil: {metricas['peso_util_kg']:.1f} kg | Pérdida: {metricas['peso_perdida_kg']:.1f} kg)", 0, 0)
 
     pdf.ln(25 if metricas['kg_m'] > 0 else 20)
     
@@ -598,3 +598,4 @@ if calcular:
                 idx_patron += 1
         else:
             st.info("Ingresa las piezas a la izquierda y presiona Calcular.")
+
