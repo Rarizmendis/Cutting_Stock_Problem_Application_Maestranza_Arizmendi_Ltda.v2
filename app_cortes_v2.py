@@ -178,9 +178,12 @@ def crear_pdf_cortes(patrones, nombre_estructura, largo_stock, kerf, metricas):
     pdf.cell(0, 6, f"{int(kerf)} mm", 0, 1)
     pdf.ln(5)
     
-    # Metricas (Actualizadas según requerimiento)
+    # --- MÉTRICAS ---
+    # Ajustamos altura según si hay peso o no
+    altura_rect = 32 if metricas['kg_m'] > 0 else 32 # Mantener altura fija por estética o ajustar
+    
     pdf.set_fill_color(240, 240, 240)
-    pdf.rect(10, pdf.get_y(), 190, 32, 'F') # Más alto para nueva fila
+    pdf.rect(10, pdf.get_y(), 190, altura_rect, 'F')
     y_start = pdf.get_y() + 3
     pdf.set_xy(10, y_start)
     
@@ -196,8 +199,16 @@ def crear_pdf_cortes(patrones, nombre_estructura, largo_stock, kerf, metricas):
     pdf.set_font("Arial", '', 9)
     pdf.cell(45, 5, f"{metricas['barras_stock']} un.", 0, 0)
 
+    # Si hay peso lineal, lo mostramos en Columna 1 abajo
+    if metricas['kg_m'] > 0:
+        pdf.set_xy(10, y_start + 12)
+        pdf.set_font("Arial", 'B', 9)
+        pdf.cell(45, 5, "Peso material:", 0, 0, 'R')
+        pdf.set_font("Arial", '', 9)
+        pdf.cell(45, 5, f"{metricas['peso_total_kg']:.1f} kg ({metricas['kg_m']} kg/m)", 0, 0)
+
     # Columna 2
-    pdf.set_xy(100, y_start) # Mover a la derecha
+    pdf.set_xy(100, y_start) 
     pdf.set_font("Arial", 'B', 9)
     pdf.cell(45, 5, "Metros útiles:", 0, 0, 'R')
     pdf.set_font("Arial", '', 9)
@@ -205,9 +216,8 @@ def crear_pdf_cortes(patrones, nombre_estructura, largo_stock, kerf, metricas):
 
     pdf.set_xy(100, y_start + 6)
     pdf.set_font("Arial", 'B', 9)
-    pdf.cell(45, 5, "Pérdida total:", 0, 0, 'R') # Renombrado
+    pdf.cell(45, 5, "Pérdida total:", 0, 0, 'R') 
     pdf.set_font("Arial", '', 9)
-    # Pérdida total con porcentaje
     pdf.cell(45, 5, f"{metricas['desperdicio_total_m']:.2f} m ({metricas['desperdicio_pct']:.1f}%)", 0, 0)
 
     pdf.set_xy(100, y_start + 12)
@@ -227,7 +237,7 @@ def crear_pdf_cortes(patrones, nombre_estructura, largo_stock, kerf, metricas):
     margen_izq = 10
     idx = 1
     resumen_piezas = {} 
-    resumen_material = {} # Para la nueva tabla de material
+    resumen_material = {}
 
     for firma, datos in patrones.items():
         if pdf.get_y() > 230: pdf.add_page()
@@ -238,22 +248,18 @@ def crear_pdf_cortes(patrones, nombre_estructura, largo_stock, kerf, metricas):
         cortes = datos['cortes']
         remanente = int(datos['libre'])
         
-        # Logica Resumen Piezas
         for c in cortes:
             key = (c['etiqueta'], int(c['largo']))
             resumen_piezas[key] = resumen_piezas.get(key, 0) + repeticiones
 
-        # Logica Resumen Material
         key_mat = (tipo, int(largo_base))
         if key_mat not in resumen_material:
             resumen_material[key_mat] = {'cantidad': 0, 'metros_utiles_acum': 0}
         
         resumen_material[key_mat]['cantidad'] += repeticiones
-        # Calculamos metros útiles de ESTE patrón (sin contar sierra ni sobrante)
         metros_utiles_patron = sum(c['largo'] for c in cortes)
         resumen_material[key_mat]['metros_utiles_acum'] += (metros_utiles_patron * repeticiones)
 
-        # Dibujo de patrones (Igual que antes)
         pdf.set_font("Arial", 'B', 10)
         tipo_texto = "BARRA NUEVA" if tipo == 'nueva' else f"RETAZO BODEGA ({int(largo_base)}mm)"
         
@@ -322,9 +328,10 @@ def crear_pdf_cortes(patrones, nombre_estructura, largo_stock, kerf, metricas):
         pdf.ln(altura_barra + 10) 
         idx += 1
     
-    # --- TABLA RESUMEN DE PIEZAS ---
+    # --- TABLAS RESUMEN ---
     pdf.ln(5)
     if pdf.get_y() > 240: pdf.add_page()
+    
     pdf.set_font("Arial", 'B', 12)
     pdf.cell(0, 10, "Resumen de piezas cortadas", 0, 1) 
     
@@ -348,13 +355,11 @@ def crear_pdf_cortes(patrones, nombre_estructura, largo_stock, kerf, metricas):
         pdf.cell(ancho_col2, 6, str(largo), 1, 0, 'C')
         pdf.cell(ancho_col3, 6, str(cantidad), 1, 1, 'C')
 
-    # --- NUEVA TABLA: RESUMEN DE MATERIAL UTILIZADO ---
     pdf.ln(8)
     if pdf.get_y() > 240: pdf.add_page()
     pdf.set_font("Arial", 'B', 12)
     pdf.cell(0, 10, "Resumen de material utilizado", 0, 1) 
     
-    # Columnas: Tipo material | Largo | Cantidad Usada | % Aprovechamiento
     w1, w2, w3, w4 = 60, 30, 30, 40
     tot_w = w1 + w2 + w3 + w4
     x_cent = (210 - tot_w) / 2
@@ -368,8 +373,6 @@ def crear_pdf_cortes(patrones, nombre_estructura, largo_stock, kerf, metricas):
     pdf.cell(w4, 7, "% Aprovechamiento", 1, 1, 'C', True)
     
     pdf.set_font("Arial", '', 9)
-    
-    # Ordenar: Primero Nuevas, luego Stock
     mat_ordenado = sorted(resumen_material.items(), key=lambda x: (x[0][0], x[0][1]))
     
     for (tipo, largo), datos in mat_ordenado:
@@ -377,14 +380,10 @@ def crear_pdf_cortes(patrones, nombre_estructura, largo_stock, kerf, metricas):
         metros_utiles = datos['metros_utiles_acum']
         metros_totales_barras = largo * cant
         
-        # --- INICIO CALCULO EFICIENCIA (BORRABLE) ---
-        # Eficiencia = (Suma de largos de piezas cortadas) / (Suma de largos de las barras usadas) * 100
-        # Esto indica qué porcentaje de la barra se convirtió en producto útil vs basura (sierra+sobrante).
         if metros_totales_barras > 0:
             eficiencia = (metros_utiles / metros_totales_barras) * 100
         else:
             eficiencia = 0
-        # --- FIN CALCULO EFICIENCIA ---
 
         tipo_str = "Barra Nueva Comercial" if tipo == 'nueva' else "Retazo de Bodega"
         
@@ -416,6 +415,9 @@ with st.sidebar:
     nombre_estructura = st.text_input("Nombre Proyecto", value="Estructura X")
     largo_stock = st.number_input("Largo Comercial (mm)", value=6000, step=100)
     kerf = st.number_input("Espesor Sierra (mm)", value=3.0, step=0.5)
+    
+    # --- NUEVA OPCIÓN: PESO LINEAL ---
+    kg_m = st.number_input("Peso lineal (kg/m) [Opcional]", value=0.0, step=0.1, help="Si es 0, no se calcula el peso.")
     
     st.divider()
     
@@ -491,32 +493,36 @@ if calcular:
             barras_nuevas = sum(1 for b in resultados if b['tipo'] == 'nueva')
             barras_stock = sum(1 for b in resultados if b['tipo'] == 'stock')
             
-            # --- CÁLCULOS KPI ACTUALIZADOS ---
+            # KPI
             util_total_mm = sum(p['largo'] for b in resultados for p in b['cortes'])
             sobrante_total_mm = sum(b['libre'] for b in resultados)
             material_usado_total_mm = sum(b['capacidad_max'] for b in resultados)
-            
-            # "Pérdida Total" = (Material Total - Material Útil). Esto incluye Sierra + Sobrante.
             desperdicio_total_mm = material_usado_total_mm - util_total_mm
             
-            # Porcentajes
             pct_util = (util_total_mm / material_usado_total_mm * 100) if material_usado_total_mm > 0 else 0
             pct_desp = (desperdicio_total_mm / material_usado_total_mm * 100) if material_usado_total_mm > 0 else 0
             pct_sobr = (sobrante_total_mm / material_usado_total_mm * 100) if material_usado_total_mm > 0 else 0
 
+            # CÁLCULO PESO (Opcional)
+            peso_total = 0.0
+            if kg_m > 0:
+                # El peso se calcula sobre el material total consumido (incluyendo lo que se bota)
+                # O sobre el material útil? Normalmente se compra por peso total.
+                peso_total = (material_usado_total_mm / 1000) * kg_m
+
             st.subheader("3. Resultados del Proyecto")
             
-            c1, c2, c3, c4, c5 = st.columns(5)
-            # KPI 1: Barras nuevas (Tooltip dinámico con f-string)
-            c1.metric("Barras NUEVAS", f"{barras_nuevas} un.", help=f"Barras comerciales de {int(largo_stock/1000)}m a comprar")
-            # KPI 2: Retazos
-            c2.metric("Retazos Usados", f"{barras_stock} un.", help="Material recuperado de bodega")
-            # KPI 3: Metros Útiles (NUEVO)
-            c3.metric("Metros Útiles", f"{util_total_mm/1000:.2f} m ({pct_util:.1f}%)", help="Suma de las piezas cortadas")
-            # KPI 4: Pérdida Total (Renombrado y con %)
-            c4.metric("Pérdida Total", f"{desperdicio_total_mm/1000:.2f} m ({pct_desp:.1f}%)", help="Sierra + Sobrantes")
-            # KPI 5: Sobrante Final
-            c5.metric("Solo Sobrante", f"{sobrante_total_mm/1000:.2f} m", help="Material que vuelve a bodega")
+            # Columnas dinámicas (si hay peso son 6, si no 5)
+            cols = st.columns(6) if kg_m > 0 else st.columns(5)
+            
+            cols[0].metric("Barras NUEVAS", f"{barras_nuevas} un.", help=f"Barras comerciales de {int(largo_stock/1000)}m a comprar")
+            cols[1].metric("Retazos Usados", f"{barras_stock} un.", help="Material recuperado de bodega")
+            cols[2].metric("Metros Útiles", f"{util_total_mm/1000:.2f} m ({pct_util:.1f}%)", help="Suma de las piezas cortadas")
+            cols[3].metric("Pérdida Total", f"{desperdicio_total_mm/1000:.2f} m ({pct_desp:.1f}%)", help="Sierra + Sobrantes")
+            cols[4].metric("Solo Sobrante", f"{sobrante_total_mm/1000:.2f} m", help="Material que vuelve a bodega")
+            
+            if kg_m > 0:
+                cols[5].metric("Peso Total", f"{peso_total:.1f} kg", help=f"Basado en {kg_m} kg/m")
             
             st.divider()
 
@@ -526,7 +532,8 @@ if calcular:
                 'total_barras': total_barras, 'barras_nuevas': barras_nuevas, 'barras_stock': barras_stock,
                 'sobrante_m': sobrante_total_mm/1000, 'sobrante_pct': pct_sobr, 
                 'desperdicio_total_m': desperdicio_total_mm/1000, 'desperdicio_pct': pct_desp,
-                'util_m': util_total_mm/1000, 'util_pct': pct_util
+                'util_m': util_total_mm/1000, 'util_pct': pct_util,
+                'kg_m': kg_m, 'peso_total_kg': peso_total
             }
             
             pdf_obj = crear_pdf_cortes(patrones, nombre_estructura, largo_stock, kerf, metricas)
